@@ -4,8 +4,8 @@
 #### *All agents will be trained on RGB frames and feature values native from the game engine.*
 
 Every games will be developed on 2 algorithms:
-1. Deep Learning 
-2. Deep Evolution Strategies
+1. Deep Learning (Bellman equation)
+2. Deep Evolution Strategies (Q-Learning bellman equation, reward based)
 
 Games that will be developed:
 1. Flappy bird
