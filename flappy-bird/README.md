@@ -8,6 +8,6 @@ Our flap-flap-flap on training..
 
 ![alt text](training.gif)
 
-Got 2 sections:
-1. Features selection learning
-2. Image based learning
+## Reward graph on Deep-Q-Learning
+
+![alt text](reward-deepq-feature.png)
