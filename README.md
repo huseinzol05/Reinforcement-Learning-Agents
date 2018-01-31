@@ -5,7 +5,8 @@ Every games will be developed on 2 algorithms:
 1. Deep Learning
 2. Deep Evolution Strategies
 
-Games that will be developed,
+
+Games that will be developed:
 1. Flappy bird
 2. level 1 mario
 3. pong
