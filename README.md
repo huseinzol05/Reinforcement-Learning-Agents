@@ -1,7 +1,7 @@
 # Reinforcement-Learning-Agents
-Play various of games using deep learning Tensorflow and deep Evolution Strategies. 
+### Play various of games using deep learning Tensorflow and deep Evolution Strategies. 
 
-### *All agents will be trained on RGB frames and feature values native from the game engine.*
+#### *All agents will be trained on RGB frames and feature values native from the game engine.*
 
 Every games will be developed on 2 algorithms:
 1. Deep Learning 
