@@ -1,6 +1,6 @@
 ## Welcome to Flap-flap-flap!
 
-Professional flappy bird!
+Professional flap-flap-flap
 
 ![alt text](flappy-bird.gif)
 
