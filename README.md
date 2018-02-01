@@ -8,15 +8,15 @@ Every games will be developed on 2 algorithms:
 2. Deep Evolution Strategies (Q-Learning bellman equation, reward based)
 
 Games that will be developed:
-1. Flappy bird
-2. level 1 mario
-3. pong
-4. Catcher
-5. Monster Kong
-6. Pixelcopter
-7. Raycast Maze
-8. Snake
-9. Water World
-10. Dooms
+1. Flappy bird (completed for features and frames based)
+2. level 1 mario (refactoring from previous repository)
+3. pong (on training for features and frames based)
+4. Catcher (not started yet)
+5. Monster Kong (game got bugs)
+6. Pixelcopter (not started yet)
+7. Raycast Maze (not started yet)
+8. Snake (not started yet)
+9. Water World (not started yet)
+10. Dooms (not started yet)
 
 This repository will be update overtime.
