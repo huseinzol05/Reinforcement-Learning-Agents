@@ -9,7 +9,7 @@ Every games will be developed on 2 algorithms:
 
 Games that will be developed:
 1. Flappy bird (completed for features and frames based)
-2. level 1 mario (refactoring from previous repository)
+2. level 1 mario (completed for frames based only)
 3. pong (on training for features and frames based)
 4. Catcher (not started yet)
 5. Monster Kong (game got bugs)
