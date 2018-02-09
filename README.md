@@ -13,7 +13,7 @@ Games that will be developed:
 3. pong (on training for features and frames based)
 4. Catcher (not started yet)
 5. Monster Kong (game got bugs)
-6. Pixelcopter (not started yet)
+6. Pixelcopter (completed for features and frames based)
 7. Raycast Maze (not started yet)
 8. Snake (not started yet)
 9. Water World (not started yet)
