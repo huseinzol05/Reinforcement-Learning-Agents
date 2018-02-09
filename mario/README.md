@@ -23,6 +23,6 @@ data/model.py
 ```
 
 
-![screenshot](https://raw.githubusercontent.com/huseinzol05/Mario-DeepQ-Learning/master/screenshotmario/1.png)
-![screenshot](https://raw.githubusercontent.com/huseinzol05/Mario-DeepQ-Learning/master/screenshotmario/2.png)
-![screenshot](https://raw.githubusercontent.com/huseinzol05/Mario-DeepQ-Learning/master/screenshotmario/3.png)
+![screenshot](screenshotmario/1.png)
+![screenshot](screenshotmario/2.png)
+![screenshot](screenshotmario/3.png)
