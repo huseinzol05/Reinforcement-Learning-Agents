@@ -19,4 +19,9 @@ Games that will be developed:
 9. Water World (not started yet)
 10. Dooms (not started yet)
 
+API folder contains (not portable):
+1. Vanilla reward system
+2. Deep-Q-learning system
+3. Double Deep-Q-learning system
+
 This repository will be update overtime.
