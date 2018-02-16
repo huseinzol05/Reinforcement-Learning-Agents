@@ -42,7 +42,7 @@ class Agent:
     OUTPUT_SIZE = 2
     MEMORIES = deque()
     INITIAL_IMAGES = np.zeros((80, 80, 4))
-    COPY = 100
+    COPY = 1000
     T_COPY = 0
     # based on documentation, features got 8 dimensions
 
@@ -105,16 +105,15 @@ class Agent:
 
     def get_reward(self, weights, weights_negative):
         self.model.set_weights(weights)
-        if (self.T_COPY + 1) % self.COPY == 0:
-            self.model_negative.set_weights(weights)
-        else:
-            self.model_negative.set_weights(weights_negative)
+        self.model_negative.set_weights(weights_negative)
         self.env.reset_game()
         state = self._get_image(self.env.getScreenRGB())
         for k in range(self.INITIAL_IMAGES.shape[2]):
             self.INITIAL_IMAGES[:,:,k] = state
         dead = False
         while not dead:
+            if (self.T_COPY + 1) % self.COPY == 0:
+                self.model_negative.set_weights(weights)
             action  = self._select_action(self.INITIAL_IMAGES)
             real_action = 119 if action == 1 else None
             reward = self.env.act(real_action)

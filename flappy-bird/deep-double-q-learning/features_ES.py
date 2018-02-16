@@ -36,7 +36,7 @@ class Agent:
     GAMMA = 0.99
     INPUT_SIZE = 8
     OUTPUT_SIZE = 2
-    COPY = 100
+    COPY = 1000
     T_COPY = 0
     MEMORIES = deque()
     # based on documentation, features got 8 dimensions
@@ -100,13 +100,12 @@ class Agent:
 
     def get_reward(self, weights, weights_negative):
         self.model.set_weights(weights)
-        if (self.T_COPY + 1) % self.COPY == 0:
-            self.model_negative.set_weights(weights)
-        else:
-            self.model_negative.set_weights(weights_negative)
+        self.model_negative.set_weights(weights_negative)
         self.env.reset_game()
         dead = False
         while not dead:
+            if (self.T_COPY + 1) % self.COPY == 0:
+                self.model_negative.set_weights(weights)
             state = self.get_state()
             action  = self._select_action(state)
             real_action = 119 if action == 1 else None

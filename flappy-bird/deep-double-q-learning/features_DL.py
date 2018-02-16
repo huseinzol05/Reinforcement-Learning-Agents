@@ -19,6 +19,8 @@ class Agent:
     MIN_EPSILON = 0.1
     GAMMA = 0.99
     MEMORIES = deque()
+    COPY = 1000
+    T_COPY = 0
     MEMORY_SIZE = 300
     # based on documentation, features got 8 dimensions
     # output is 2 dimensions, 0 = do nothing, 1 = jump
@@ -30,17 +32,29 @@ class Agent:
         self.env.getGameState = self.game.getGameState
         self.X = tf.placeholder(tf.float32, (None, self.INPUT_SIZE))
         self.Y = tf.placeholder(tf.float32, (None, self.OUTPUT_SIZE))
-        input_layer = tf.Variable(tf.random_normal([self.INPUT_SIZE, self.LAYER_SIZE]))
-        bias = tf.Variable(tf.random_normal([self.LAYER_SIZE]))
-        output_layer = tf.Variable(tf.random_normal([self.LAYER_SIZE, self.OUTPUT_SIZE]))
-        feed_forward = tf.nn.relu(tf.matmul(self.X, input_layer) + bias)
-        self.logits = tf.matmul(feed_forward, output_layer)
+        self.input_layer = tf.Variable(tf.random_normal([self.INPUT_SIZE, self.LAYER_SIZE]))
+        self.bias = tf.Variable(tf.random_normal([self.LAYER_SIZE]))
+        self.output_layer = tf.Variable(tf.random_normal([self.LAYER_SIZE, self.OUTPUT_SIZE]))
+        feed_forward = tf.nn.relu(tf.matmul(self.X, self.input_layer) + self.bias)
+        self.logits = tf.matmul(feed_forward, self.output_layer)
         self.cost = tf.reduce_sum(tf.square(self.Y - self.logits))
         self.optimizer = tf.train.AdamOptimizer(learning_rate = self.LEARNING_RATE).minimize(self.cost)
+        self.input_layer_negative = tf.Variable(tf.random_normal([self.INPUT_SIZE, self.LAYER_SIZE]))
+        self.bias_negative = tf.Variable(tf.random_normal([self.LAYER_SIZE]))
+        self.output_layer_negative = tf.Variable(tf.random_normal([self.LAYER_SIZE, self.OUTPUT_SIZE]))
+        feed_forward_negative = tf.nn.relu(tf.matmul(self.X, self.input_layer_negative) + self.bias_negative)
+        self.logits_negative = tf.matmul(feed_forward_negative, output_layer_negative)
         self.sess = tf.InteractiveSession()
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver(tf.global_variables())
         self.rewards = []
+
+    def _assign(self):
+        assign_op = self.input_layer_negative.assign(self.input_layer)
+        self.sess.run(assign_op)
+        assign_op = self.bias_negative.assign(self.bias)
+        self.sess.run(assign_op)
+        assign_op = self.output_layer_negative.assign(self.output_layer)
 
     def _memorize(self, state, action, reward, new_state, done):
         self.MEMORIES.append((state, action, reward, new_state, done))
@@ -58,7 +72,8 @@ class Agent:
         states = np.array([a[0] for a in replay])
         new_states = np.array([a[3] for a in replay])
         Q = self.predict(states)
-        Q_new = self.model.predict(new_states)
+        Q_new = self.predict(new_states)
+        Q_new_negative = sess.run(self.logits_negative, feed_dict={self.X:new_states})
         replay_size = len(replay)
         X = np.empty((replay_size, self.INPUT_SIZE))
         Y = np.empty((replay_size, self.OUTPUT_SIZE))
@@ -67,7 +82,7 @@ class Agent:
             target = Q[i]
             target[action_r] = reward_r
             if not done_r:
-                target[action_r] += self.GAMMA * Q_new[i]
+                target[action_r] += self.GAMMA * Q_new_negative[i, np.argmax(Q_new[i])]
             X[i] = state_r
             Y[i] = target
         return X, Y
@@ -99,6 +114,8 @@ class Agent:
             self.env.reset_game()
             done = False
             while not done:
+                if (self.T_COPY + 1) % self.COPY == 0:
+                    self._assign()
                 state = self.get_state()
                 action  = self._select_action(state)
                 real_action = 119 if action == 1 else None
@@ -111,6 +128,7 @@ class Agent:
                 replay = random.sample(self.MEMORIES, batch_size)
                 X, Y = self._construct_memories(replay)
                 cost, _ = self.sess.run([self.cost, self.optimizer], feed_dict={self.X: X, self.Y:Y})
+                self.T_COPY += 1
             self.rewards.append(total_reward)
             self.EPSILON = self.MIN_EPSILON + (1.0 - self.MIN_EPSILON) * np.exp(-self.DECAY_RATE * i)
             if (i+1) % checkpoint == 0:
