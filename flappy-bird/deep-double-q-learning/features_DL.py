@@ -7,6 +7,18 @@ from collections import deque
 import os
 import pickle
 
+class Model:
+    def __init__(self, input_size, output_size, layer_size, learning_rate):
+        self.X = tf.placeholder(tf.float32, (None, input_size))
+        self.Y = tf.placeholder(tf.float32, (None, output_size))
+        self.input_layer = tf.Variable(tf.random_normal([input_size, layer_size]))
+        self.bias = tf.Variable(tf.random_normal([layer_size]))
+        self.output_layer = tf.Variable(tf.random_normal([layer_size, output_size]))
+        feed_forward = tf.nn.relu(tf.matmul(self.X, self.input_layer) + self.bias)
+        self.logits = tf.matmul(feed_forward, self.output_layer)
+        self.cost = tf.reduce_sum(tf.square(self.Y - self.logits))
+        self.optimizer = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(self.cost)
+
 class Agent:
 
     LEARNING_RATE = 0.003
@@ -30,31 +42,17 @@ class Agent:
         self.env = PLE(self.game, fps=30, display_screen=screen, force_fps=forcefps)
         self.env.init()
         self.env.getGameState = self.game.getGameState
-        self.X = tf.placeholder(tf.float32, (None, self.INPUT_SIZE))
-        self.Y = tf.placeholder(tf.float32, (None, self.OUTPUT_SIZE))
-        self.input_layer = tf.Variable(tf.random_normal([self.INPUT_SIZE, self.LAYER_SIZE]))
-        self.bias = tf.Variable(tf.random_normal([self.LAYER_SIZE]))
-        self.output_layer = tf.Variable(tf.random_normal([self.LAYER_SIZE, self.OUTPUT_SIZE]))
-        feed_forward = tf.nn.relu(tf.matmul(self.X, self.input_layer) + self.bias)
-        self.logits = tf.matmul(feed_forward, self.output_layer)
-        self.cost = tf.reduce_sum(tf.square(self.Y - self.logits))
-        self.optimizer = tf.train.AdamOptimizer(learning_rate = self.LEARNING_RATE).minimize(self.cost)
-        self.input_layer_negative = tf.Variable(tf.random_normal([self.INPUT_SIZE, self.LAYER_SIZE]))
-        self.bias_negative = tf.Variable(tf.random_normal([self.LAYER_SIZE]))
-        self.output_layer_negative = tf.Variable(tf.random_normal([self.LAYER_SIZE, self.OUTPUT_SIZE]))
-        feed_forward_negative = tf.nn.relu(tf.matmul(self.X, self.input_layer_negative) + self.bias_negative)
-        self.logits_negative = tf.matmul(feed_forward_negative, output_layer_negative)
+        self.model = Model(self.INPUT_SIZE, self.OUTPUT_SIZE, self.LAYER_SIZE, self.LEARNING_RATE)
+        self.model_negative = Model(self.INPUT_SIZE, self.OUTPUT_SIZE, self.LAYER_SIZE, self.LEARNING_RATE)
         self.sess = tf.InteractiveSession()
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver(tf.global_variables())
         self.rewards = []
 
     def _assign(self):
-        assign_op = self.input_layer_negative.assign(self.input_layer)
-        self.sess.run(assign_op)
-        assign_op = self.bias_negative.assign(self.bias)
-        self.sess.run(assign_op)
-        assign_op = self.output_layer_negative.assign(self.output_layer)
+        for i in range(len(self.trainable)//2):
+            assign_op = self.trainable[i+len(self.trainable)//2].assign(self.trainable[i])
+            sess.run(assign_op)
 
     def _memorize(self, state, action, reward, new_state, done):
         self.MEMORIES.append((state, action, reward, new_state, done))
@@ -73,7 +71,7 @@ class Agent:
         new_states = np.array([a[3] for a in replay])
         Q = self.predict(states)
         Q_new = self.predict(new_states)
-        Q_new_negative = sess.run(self.logits_negative, feed_dict={self.X:new_states})
+        Q_new_negative = sess.run(self.model_negative.logits, feed_dict={self.model_negative.X:new_states})
         replay_size = len(replay)
         X = np.empty((replay_size, self.INPUT_SIZE))
         Y = np.empty((replay_size, self.OUTPUT_SIZE))
@@ -88,7 +86,7 @@ class Agent:
         return X, Y
 
     def predict(self, inputs):
-        return self.sess.run(self.logits, feed_dict={self.X:inputs})
+        return self.sess.run(self.model.logits, feed_dict={self.model.X:inputs})
 
     def save(self, checkpoint_name):
         self.saver.save(self.sess, os.getcwd() + "/%s.ckpt" %(checkpoint_name))
@@ -127,7 +125,7 @@ class Agent:
                 batch_size = min(len(self.MEMORIES), self.BATCH_SIZE)
                 replay = random.sample(self.MEMORIES, batch_size)
                 X, Y = self._construct_memories(replay)
-                cost, _ = self.sess.run([self.cost, self.optimizer], feed_dict={self.X: X, self.Y:Y})
+                cost, _ = self.sess.run([self.model.cost, self.model.optimizer], feed_dict={self.model.X: X, self.model.Y:Y})
                 self.T_COPY += 1
             self.rewards.append(total_reward)
             self.EPSILON = self.MIN_EPSILON + (1.0 - self.MIN_EPSILON) * np.exp(-self.DECAY_RATE * i)

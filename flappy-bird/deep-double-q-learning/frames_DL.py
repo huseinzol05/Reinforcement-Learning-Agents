@@ -8,6 +8,35 @@ from scipy.misc import imresize
 import os
 import pickle
 
+class Model:
+    def __init__(self, output_size, learning_rate):
+        def conv_layer(x, conv, stride = 1):
+            return tf.nn.conv2d(x, conv, [1, stride, stride, 1], padding = 'SAME')
+        def pooling(x, k = 2, stride = 2):
+            return tf.nn.max_pool(x, ksize = [1, k, k, 1], strides = [1, stride, stride, 1], padding = 'SAME')
+        self.X = tf.placeholder(tf.float32, [None, 80, 80, 4])
+        self.Y = tf.placeholder(tf.float32, [None, output_size])
+        self.w_conv1 = tf.Variable(tf.truncated_normal([8, 8, 4, 32], stddev = 0.1))
+        self.b_conv1 = tf.Variable(tf.truncated_normal([32], stddev = 0.01))
+        conv1 = tf.nn.relu(conv_layer(self.X, self.w_conv1, stride = 4) + self.b_conv1)
+        pooling1 = pooling(conv1)
+        self.w_conv2 = tf.Variable(tf.truncated_normal([4, 4, 32, 64], stddev = 0.1))
+        self.b_conv2 = tf.Variable(tf.truncated_normal([64], stddev = 0.01))
+        conv2 = tf.nn.relu(conv_layer(pooling1, self.w_conv2, stride = 2) + self.b_conv2)
+        self.w_conv3 = tf.Variable(tf.truncated_normal([3, 3, 64, 64], stddev = 0.1))
+        self.b_conv3 = tf.Variable(tf.truncated_normal([64], stddev = 0.01))
+        conv3 = tf.nn.relu(conv_layer(conv2, self.w_conv3) + self.b_conv3)
+        pulling_size = int(conv3.shape[1]) * int(conv3.shape[2]) * int(conv3.shape[3])
+        conv3 = tf.reshape(conv3, [-1, pulling_size])
+        self.w_fc1 = tf.Variable(tf.truncated_normal([pulling_size, 256], stddev = 0.1))
+        self.b_fc1 = tf.Variable(tf.truncated_normal([256], stddev = 0.01))
+        self.w_fc2 = tf.Variable(tf.truncated_normal([256, 2], stddev = 0.1))
+        self.b_fc2 = tf.Variable(tf.truncated_normal([2], stddev = 0.01))
+        fc_1 = tf.nn.relu(tf.matmul(conv3, self.w_fc1) + self.b_fc1)
+        self.logits = tf.matmul(fc_1, self.w_fc2)  + self.b_fc2
+        self.cost = tf.reduce_sum(tf.square(self.Y - self.logits))
+        self.optimizer = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(self.cost)
+
 class Agent:
 
     LEARNING_RATE = 1e-6
@@ -30,78 +59,18 @@ class Agent:
         self.env = PLE(self.game, fps=30, display_screen=screen, force_fps=forcefps)
         self.env.init()
         self.env.getGameState = self.game.getGameState
-        def conv_layer(x, conv, stride = 1):
-            return tf.nn.conv2d(x, conv, [1, stride, stride, 1], padding = 'SAME')
-        def pooling(x, k = 2, stride = 2):
-            return tf.nn.max_pool(x, ksize = [1, k, k, 1], strides = [1, stride, stride, 1], padding = 'SAME')
-        self.X = tf.placeholder(tf.float32, [None, 80, 80, 4])
-        self.Y = tf.placeholder(tf.float32, [None, self.OUTPUT_SIZE])
-        self.w_conv1 = tf.Variable(tf.truncated_normal([8, 8, 4, 32], stddev = 0.1))
-        self.b_conv1 = tf.Variable(tf.truncated_normal([32], stddev = 0.01))
-        conv1 = tf.nn.relu(conv_layer(self.X, self.w_conv1, stride = 4) + self.b_conv1)
-        pooling1 = pooling(conv1)
-        self.w_conv2 = tf.Variable(tf.truncated_normal([4, 4, 32, 64], stddev = 0.1))
-        self.b_conv2 = tf.Variable(tf.truncated_normal([64], stddev = 0.01))
-        conv2 = tf.nn.relu(conv_layer(pooling1, self.w_conv2, stride = 2) + self.b_conv2)
-        self.w_conv3 = tf.Variable(tf.truncated_normal([3, 3, 64, 64], stddev = 0.1))
-        self.b_conv3 = tf.Variable(tf.truncated_normal([64], stddev = 0.01))
-        conv3 = tf.nn.relu(conv_layer(conv2, self.w_conv3) + self.b_conv3)
-        pulling_size = int(conv3.shape[1]) * int(conv3.shape[2]) * int(conv3.shape[3])
-        conv3 = tf.reshape(conv3, [-1, pulling_size])
-        self.w_fc1 = tf.Variable(tf.truncated_normal([pulling_size, 256], stddev = 0.1))
-        self.b_fc1 = tf.Variable(tf.truncated_normal([256], stddev = 0.01))
-        self.w_fc2 = tf.Variable(tf.truncated_normal([256, 2], stddev = 0.1))
-        self.b_fc2 = tf.Variable(tf.truncated_normal([2], stddev = 0.01))
-        fc_1 = tf.nn.relu(tf.matmul(conv3, self.w_fc1) + self.b_fc1)
-        self.logits = tf.matmul(fc_1, self.w_fc2)  + self.b_fc2
-        self.cost = tf.reduce_sum(tf.square(self.Y - self.logits))
-        self.optimizer = tf.train.AdamOptimizer(learning_rate = self.LEARNING_RATE).minimize(self.cost)
-
-        self.w_conv1_negative = tf.Variable(tf.truncated_normal([8, 8, 4, 32], stddev = 0.1))
-        self.b_conv1_negative = tf.Variable(tf.truncated_normal([32], stddev = 0.01))
-        conv1_negative = tf.nn.relu(conv_layer(self.X, self.w_conv1_negative, stride = 4) + self.b_conv1_negative)
-        pooling1_negative = pooling(conv1_negative)
-        self.w_conv2_negative = tf.Variable(tf.truncated_normal([4, 4, 32, 64], stddev = 0.1))
-        self.b_conv2_negative = tf.Variable(tf.truncated_normal([64], stddev = 0.01))
-        conv2_negative = tf.nn.relu(conv_layer(pooling1, self.w_conv2, stride = 2) + self.b_conv2)
-        self.w_conv3 = tf.Variable(tf.truncated_normal([3, 3, 64, 64], stddev = 0.1))
-        self.b_conv3 = tf.Variable(tf.truncated_normal([64], stddev = 0.01))
-        conv3_negative = tf.nn.relu(conv_layer(conv2_negative, self.w_conv3) + self.b_conv3)
-        pulling_size_negative = int(conv3_negative.shape[1]) * int(conv3_negative.shape[2]) * int(conv3_negative.shape[3])
-        conv3_negative = tf.reshape(conv3_negative, [-1, pulling_size_negative])
-        self.w_fc1_negative = tf.Variable(tf.truncated_normal([pulling_size, 256], stddev = 0.1))
-        self.b_fc1_negative = tf.Variable(tf.truncated_normal([256], stddev = 0.01))
-        self.w_fc2_negative = tf.Variable(tf.truncated_normal([256, 2], stddev = 0.1))
-        self.b_fc2_negative = tf.Variable(tf.truncated_normal([2], stddev = 0.01))
-        fc_1 = tf.nn.relu(tf.matmul(conv3_negative, self.w_fc1) + self.b_fc1_negative)
-        self.logits_negative = tf.matmul(fc_1, self.w_fc2_negative)  + b_fc2_negative
-
+        self.model = Model(self.OUTPUT_SIZE, self.LEARNING_RATE)
+        self.model_negative = Model(self.OUTPUT_SIZE, self.LEARNING_RATE)
         self.sess = tf.InteractiveSession()
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver(tf.global_variables())
+        self.trainable = tf.trainable_variables()
         self.rewards = []
 
     def _assign(self):
-        assign_op = self.w_conv1_negative.assign(self.w_conv1)
-        self.sess.run(assign_op)
-        assign_op = self.b_conv1_negative.assign(self.b_conv1)
-        self.sess.run(assign_op)
-        assign_op = self.w_conv2_negative.assign(self.w_conv2)
-        self.sess.run(assign_op)
-        assign_op = self.b_conv2_negative.assign(self.b_conv2)
-        self.sess.run(assign_op)
-        assign_op = self.w_conv3_negative.assign(self.w_conv3)
-        self.sess.run(assign_op)
-        assign_op = self.b_conv3_negative.assign(self.b_conv3)
-        self.sess.run(assign_op)
-        assign_op = self.w_fc1_negative.assign(self.w_fc1)
-        self.sess.run(assign_op)
-        assign_op = self.b_fc1_negative.assign(self.b_fc1)
-        self.sess.run(assign_op)
-        assign_op = self.w_fc2_negative.assign(self.w_conv2)
-        self.sess.run(assign_op)
-        assign_op = self.b_fc2_negative.assign(self.b_fc2_negative)
-        self.sess.run(assign_op)
+        for i in range(len(self.trainable)//2):
+            assign_op = self.trainable[i+len(self.trainable)//2].assign(self.trainable[i])
+            sess.run(assign_op)
 
     def _memorize(self, state, action, reward, new_state, dead):
         self.MEMORIES.append((state, action, reward, new_state, dead))
@@ -125,7 +94,7 @@ class Agent:
         new_states = np.array([a[3] for a in replay])
         Q = self.predict(states)
         Q_new = self.predict(new_states)
-        Q_new_negative = sess.run(self.logits_negative, feed_dict={self.X:new_states})
+        Q_new_negative = sess.run(self.model_negative, feed_dict={self.model_negative.X:new_states})
         replay_size = len(replay)
         X = np.empty((replay_size, 80, 80, 4))
         Y = np.empty((replay_size, self.OUTPUT_SIZE))
@@ -140,7 +109,7 @@ class Agent:
         return X, Y
 
     def predict(self, inputs):
-        return self.sess.run(self.logits, feed_dict={self.X:inputs})
+        return self.sess.run(self.model.logits, feed_dict={self.model.X:inputs})
 
     def save(self, checkpoint_name):
         self.saver.save(self.sess, os.getcwd() + "/%s.ckpt" %(checkpoint_name))

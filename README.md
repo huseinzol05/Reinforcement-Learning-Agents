@@ -8,12 +8,11 @@ Every games will be developed on different algorithms:
 2. Policy gradient on evolution strategies and deep learning
 3. Q-learning on evolution strategies and deep learning
 4. Double Q-learning on evolution strategies and deep learning
-5. Model-Network on evolution strategies and deep learning
-6. Q-learning on Recurrent Neural Network
-7. Dueling Q-learning on evolution strategies and deep learning
-9. Dueling Double Q-learning on evolution strategies and deep learning
-10. Actor-Critic on deep learning
-11. Asynchronous Actor-Critic on deep learning
+5. Q-learning on Recurrent Neural Network
+6. Dueling Q-learning on evolution strategies and deep learning
+7. Dueling Double Q-learning on evolution strategies and deep learning
+8. Actor-Critic on deep learning
+9. Asynchronous Actor-Critic on deep learning
 
 Games that will be developed:
 1. Flappy bird
@@ -28,8 +27,9 @@ Games that will be developed:
 
 How to read the file, game-folder/algorithm/{features, frames}_{DL, ES}.py
 
+```text
 DL = Deep learning
-
 ES = Evolution Strategies
+```
 
 This repository will be update overtime.
