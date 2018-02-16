@@ -4,7 +4,7 @@
 #### *All agents will be trained on RGB frames and feature values native from the game engine.*
 
 Every games will be developed on different algorithms:
-1. Reward system on evolution strategies
+1. Reward based on evolution strategies
 2. Policy gradient on evolution strategies and deep learning
 3. Q-learning on evolution strategies and deep learning
 4. Double Q-learning on evolution strategies and deep learning
