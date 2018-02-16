@@ -26,4 +26,10 @@ Games that will be developed:
 8. Water World
 9. Dooms
 
+How to read the file, game-folder/algorithm/{features, frames}_{DL, ES}.py
+
+DL = Deep learning
+
+ES = Evolution Strategies
+
 This repository will be update overtime.
