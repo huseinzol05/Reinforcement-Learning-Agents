@@ -51,8 +51,8 @@ class Agent:
         self.es = Deep_Evolution_Strategy(self.model.get_weights(), self.model_negative.get_weights(),
                                           self.get_reward, self.POPULATION_SIZE, self.SIGMA, self.LEARNING_RATE)
 
-    def _memorize(self, state, action, reward, new_state, done):
-        self.MEMORIES.append((state, action, reward, new_state, done))
+    def _memorize(self, state, action, reward, new_state, dead):
+        self.MEMORIES.append((state, action, reward, new_state, dead))
         if len(self.MEMORIES) > self.MEMORY_SIZE:
             self.MEMORIES.popleft()
 
@@ -73,10 +73,10 @@ class Agent:
         X = np.empty((replay_size, 8))
         Y = np.empty((replay_size, 2))
         for i in range(replay_size):
-            state_r, action_r, reward_r, new_state_r, done_r = replay[i]
+            state_r, action_r, reward_r, new_state_r, dead_r = replay[i]
             target = Q[i]
             target[action_r] = reward_r
-            if not done_r:
+            if not dead_r:
                 target[action_r] += self.GAMMA * Q_new_negative[i, np.argmax(Q_new[i])]
             X[i] = state_r
             Y[i] = target
@@ -124,24 +124,6 @@ class Agent:
 
     def fit(self, iterations, checkpoint):
         self.es.train(iterations,print_every=checkpoint)
-
-    def play(self, debug=False, not_realtime=False):
-        total_reward = 0.0
-        current_reward = 0
-        self.env.force_fps = not_realtime
-        self.env.reset_game()
-        done = False
-        while not done:
-            state = self.get_state()
-            action = self.get_predicted_action([state])
-            real_action = 119 if action == 1 else None
-            action_string = 'eh, jump!' if action == 1 else 'erm, do nothing..'
-            if debug and total_reward > current_reward:
-                print(action_string, 'total rewards:', total_reward)
-            current_reward = total_reward
-            total_reward += self.env.act(real_action)
-            done = self.env.game_over()
-        print('game over!')
 
 model = Model(8, 500, 2)
 model_negative = Model(8, 500, 2)

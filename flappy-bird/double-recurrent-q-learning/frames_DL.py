@@ -34,8 +34,7 @@ class Model:
                                                     dtype=tf.float32,
                                                     initial_state=self.hidden_layer,scope=name+'_rnn')
         w = tf.Variable(tf.random_normal([512, output_size]))
-        self.rnn = tf.reshape(self.rnn,shape=[-1,512])
-        self.logits = tf.matmul(self.rnn, w)
+        self.logits = tf.matmul(self.rnn[:,-1], w)
         self.cost = tf.reduce_sum(tf.square(self.Y - self.logits))
         self.optimizer = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(self.cost)
 
@@ -61,8 +60,9 @@ class Agent:
         self.env = PLE(self.game, fps=30, display_screen=screen, force_fps=forcefps)
         self.env.init()
         self.env.getGameState = self.game.getGameState
-        self.model = Model(self.OUTPUT_SIZE, self.LEARNING_RATE)
-        self.model_negative = Model(self.OUTPUT_SIZE, self.LEARNING_RATE)
+        self.model = Model(self.INPUT_SIZE, self.OUTPUT_SIZE, 512, self.LEARNING_RATE)
+        self.model_negative = Model(self.INPUT_SIZE, self.OUTPUT_SIZE, 512, self.LEARNING_RATE)
+        self.sess = tf.InteractiveSession()
         self.sess = tf.InteractiveSession()
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver(tf.global_variables())
@@ -97,7 +97,7 @@ class Agent:
         init_values = np.array([a[-1] for a in replay])
         Q = self.predict(states)
         Q_new = self.predict(new_states)
-        Q_new_negative = sess.run(self.model_negative, feed_dict={self.model_negative.X:new_states})
+        Q_new_negative = sess.run(self.model_negative, feed_dict={self.model_negative.X:new_states, self.model_negative.hidden_layer:init_values})
         replay_size = len(replay)
         X = np.empty((replay_size, 80, 80, 4))
         Y = np.empty((replay_size, self.OUTPUT_SIZE))
@@ -109,7 +109,7 @@ class Agent:
                 target[action_r] += self.GAMMA * Q_new_negative[i, np.argmax(Q_new[i])]
             X[i] = state_r
             Y[i] = target
-        return X, Y
+        return X, Y, init_values
 
     def predict(self, inputs):
         return self.sess.run(self.model.logits, feed_dict={self.model.X:inputs})
@@ -144,7 +144,7 @@ class Agent:
             while not dead:
                 if (self.T_COPY + 1) % self.COPY == 0:
                     self._assign()
-                action  = self._select_action(self.INITIAL_IMAGES)
+                action = self._select_action(self.INITIAL_IMAGES)
                 real_action = 119 if action == 1 else None
                 reward = self.env.act(real_action)
                 total_reward += reward
@@ -168,26 +168,3 @@ class Agent:
 
     def fit(self, iterations, checkpoint):
         self.get_reward(iterations, checkpoint)
-
-    def play(self, debug=False, not_realtime=False):
-        total_reward = 0.0
-        current_reward = 0
-        self.env.force_fps = not_realtime
-        self.env.reset_game()
-        state = self._get_image(self.env.getScreenRGB())
-        for k in range(self.INITIAL_IMAGES.shape[2]):
-            self.INITIAL_IMAGES[:,:,k] = state
-        dead = False
-        while not dead:
-            state = self.get_state()
-            action = np.argmax(self.predict(np.array([self.INITIAL_IMAGES]))[0])
-            real_action = 119 if action == 1 else None
-            action_string = 'eh, jump!' if action == 1 else 'erm, do nothing..'
-            if debug and total_reward > current_reward:
-                print(action_string, 'total rewards:', total_reward)
-            current_reward = total_reward
-            total_reward += self.env.act(real_action)
-            state = self._get_image(self.env.getScreenRGB())
-            self.INITIAL_IMAGES = np.append(state.reshape([80, 80, 1]), self.INITIAL_IMAGES[:, :, :3], axis = 2)
-            dead = self.env.game_over()
-        print('game over!')

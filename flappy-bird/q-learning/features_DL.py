@@ -110,7 +110,7 @@ class Agent:
                 batch_size = min(len(self.MEMORIES), self.BATCH_SIZE)
                 replay = random.sample(self.MEMORIES, batch_size)
                 X, Y = self._construct_memories(replay)
-                cost, _ = self.sess.run([self.model.cost, self.model.optimizer], feed_dict={self.model.X: X, self.model.Y:Y})
+                cost, _ = self.sess.run([self.cost, self.optimizer], feed_dict={self.X: X, self.Y:Y})
             self.rewards.append(total_reward)
             self.EPSILON = self.MIN_EPSILON + (1.0 - self.MIN_EPSILON) * np.exp(-self.DECAY_RATE * i)
             if (i+1) % checkpoint == 0:
@@ -119,21 +119,3 @@ class Agent:
 
     def fit(self, iterations, checkpoint):
         self.get_reward(iterations, checkpoint)
-
-    def play(self, debug=False, not_realtime=False):
-        total_reward = 0.0
-        current_reward = 0
-        self.env.force_fps = not_realtime
-        self.env.reset_game()
-        done = False
-        while not done:
-            state = self.get_state()
-            action  = self._select_action(state)
-            real_action = 119 if action == 1 else None
-            action_string = 'eh, jump!' if action == 1 else 'erm, do nothing..'
-            if debug and total_reward > current_reward:
-                print(action_string, 'total rewards:', total_reward)
-            current_reward = total_reward
-            total_reward += self.env.act(real_action)
-            done = self.env.game_over()
-        print('game over!')

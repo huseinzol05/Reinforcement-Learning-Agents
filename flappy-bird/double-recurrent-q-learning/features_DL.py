@@ -9,13 +9,15 @@ import pickle
 
 class Model:
     def __init__(self, input_size, output_size, layer_size, learning_rate):
-        self.X = tf.placeholder(tf.float32, (None, input_size))
+        self.X = tf.placeholder(tf.float32, (None, None, input_size))
         self.Y = tf.placeholder(tf.float32, (None, output_size))
-        self.input_layer = tf.Variable(tf.random_normal([input_size, layer_size]))
-        self.bias = tf.Variable(tf.random_normal([layer_size]))
-        self.output_layer = tf.Variable(tf.random_normal([layer_size, output_size]))
-        feed_forward = tf.nn.relu(tf.matmul(self.X, self.input_layer) + self.bias)
-        self.logits = tf.matmul(feed_forward, self.output_layer)
+        cell = tf.nn.rnn_cell.LSTMCell(512, state_is_tuple = False)
+        self.hidden_layer = tf.placeholder(tf.float32, (None, 2 * 512))
+        self.rnn,self.rnn_state = tf.nn.dynamic_rnn(inputs=self.X,cell=cell,
+                                                    dtype=tf.float32,
+                                                    initial_state=self.hidden_layer,scope=name+'_rnn')
+        w = tf.Variable(tf.random_normal([512, output_size]))
+        self.logits = tf.matmul(self.rnn[:,-1], w)
         self.cost = tf.reduce_sum(tf.square(self.Y - self.logits))
         self.optimizer = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(self.cost)
 
@@ -34,6 +36,7 @@ class Agent:
     COPY = 1000
     T_COPY = 0
     MEMORY_SIZE = 300
+    INITIAL_FEATURES = np.zeros((4, INPUT_SIZE))
     # based on documentation, features got 8 dimensions
     # output is 2 dimensions, 0 = do nothing, 1 = jump
 
@@ -54,8 +57,8 @@ class Agent:
             assign_op = self.trainable[i+len(self.trainable)//2].assign(self.trainable[i])
             sess.run(assign_op)
 
-    def _memorize(self, state, action, reward, new_state, done):
-        self.MEMORIES.append((state, action, reward, new_state, done))
+    def _memorize(self, state, action, reward, new_state, dead):
+        self.MEMORIES.append((state, action, reward, new_state, dead))
         if len(self.MEMORIES) > self.MEMORY_SIZE:
             self.MEMORIES.popleft()
 
@@ -76,10 +79,10 @@ class Agent:
         X = np.empty((replay_size, self.INPUT_SIZE))
         Y = np.empty((replay_size, self.OUTPUT_SIZE))
         for i in range(replay_size):
-            state_r, action_r, reward_r, new_state_r, done_r = replay[i]
+            state_r, action_r, reward_r, new_state_r, dead_r = replay[i]
             target = Q[i]
             target[action_r] = reward_r
-            if not done_r:
+            if not dead_r:
                 target[action_r] += self.GAMMA * Q_new_negative[i, np.argmax(Q_new[i])]
             X[i] = state_r
             Y[i] = target
@@ -110,18 +113,22 @@ class Agent:
         for i in range(iterations):
             total_reward = 0
             self.env.reset_game()
-            done = False
-            while not done:
+            dead = False
+            init_value = np.zeros((2 * 512))
+            state = self.get_state()
+            for i in range(self.INITIAL_FEATURES.shape[0]):
+                self.INITIAL_FEATURES[i,:] = state
+            while not dead:
                 if (self.T_COPY + 1) % self.COPY == 0:
                     self._assign()
                 state = self.get_state()
-                action  = self._select_action(state)
+                action  = self._select_action(self.INITIAL_FEATURES)
                 real_action = 119 if action == 1 else None
                 reward = self.env.act(real_action)
                 total_reward += reward
-                new_state = self.get_state()
-                done = self.env.game_over()
-                self._memorize(state, action, reward, new_state, done)
+                new_state = np.append(self.get_state(), self.INITIAL_FEATURES[:3, :], axis = 0)
+                dead = self.env.game_over()
+                self._memorize(state, action, reward, new_state, dead)
                 batch_size = min(len(self.MEMORIES), self.BATCH_SIZE)
                 replay = random.sample(self.MEMORIES, batch_size)
                 X, Y = self._construct_memories(replay)
@@ -135,21 +142,3 @@ class Agent:
 
     def fit(self, iterations, checkpoint):
         self.get_reward(iterations, checkpoint)
-
-    def play(self, debug=False, not_realtime=False):
-        total_reward = 0.0
-        current_reward = 0
-        self.env.force_fps = not_realtime
-        self.env.reset_game()
-        done = False
-        while not done:
-            state = self.get_state()
-            action  = self._select_action(state)
-            real_action = 119 if action == 1 else None
-            action_string = 'eh, jump!' if action == 1 else 'erm, do nothing..'
-            if debug and total_reward > current_reward:
-                print(action_string, 'total rewards:', total_reward)
-            current_reward = total_reward
-            total_reward += self.env.act(real_action)
-            done = self.env.game_over()
-        print('game over!')
