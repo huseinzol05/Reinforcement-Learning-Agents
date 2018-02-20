@@ -21,7 +21,9 @@ Every games will be developed on different algorithms:
 9. Double Dueling Q-learning {DL}
 10. Double Dueling Recurrent-Q-learning {DL}
 11. Actor-Critic {DL}
-12. Recurrent Actor-Critic {DL}
+12. Actor-Critic Dueling {DL}
+13. Actor-Critic Recurrent {DL}
+14. Actor-Critic Dueling Recurrent {DL}
 
 Games that will be developed:
 1. Flappy bird
