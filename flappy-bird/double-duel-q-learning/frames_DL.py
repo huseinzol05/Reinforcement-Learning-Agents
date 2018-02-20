@@ -9,34 +9,35 @@ import os
 import pickle
 
 class Model:
-    def __init__(self, output_size, learning_rate, batch_size, name):
+    def __init__(self, output_size, learning_rate):
         def conv_layer(x, conv, stride = 1):
             return tf.nn.conv2d(x, conv, [1, stride, stride, 1], padding = 'SAME')
         def pooling(x, k = 2, stride = 2):
             return tf.nn.max_pool(x, ksize = [1, k, k, 1], strides = [1, stride, stride, 1], padding = 'SAME')
         self.X = tf.placeholder(tf.float32, [None, 80, 80, 4])
         self.Y = tf.placeholder(tf.float32, [None, output_size])
-        self.w_conv1 = tf.Variable(tf.truncated_normal([8, 8, 4, 32], stddev = 0.1))
-        self.b_conv1 = tf.Variable(tf.truncated_normal([32], stddev = 0.01))
-        conv1 = tf.nn.relu(conv_layer(self.X, self.w_conv1, stride = 4) + self.b_conv1)
+        w_conv1 = tf.Variable(tf.truncated_normal([8, 8, 4, 32], stddev = 0.1))
+        b_conv1 = tf.Variable(tf.truncated_normal([32], stddev = 0.01))
+        conv1 = tf.nn.relu(conv_layer(self.X, w_conv1, stride = 4) + b_conv1)
         pooling1 = pooling(conv1)
-        self.w_conv2 = tf.Variable(tf.truncated_normal([4, 4, 32, 64], stddev = 0.1))
-        self.b_conv2 = tf.Variable(tf.truncated_normal([64], stddev = 0.01))
-        conv2 = tf.nn.relu(conv_layer(pooling1, self.w_conv2, stride = 2) + self.b_conv2)
-        self.w_conv3 = tf.Variable(tf.truncated_normal([3, 3, 64, 64], stddev = 0.1))
-        self.b_conv3 = tf.Variable(tf.truncated_normal([64], stddev = 0.01))
-        conv3 = tf.nn.relu(conv_layer(conv2, self.w_conv3) + self.b_conv3)
+        w_conv2 = tf.Variable(tf.truncated_normal([4, 4, 32, 64], stddev = 0.1))
+        b_conv2 = tf.Variable(tf.truncated_normal([64], stddev = 0.01))
+        conv2 = tf.nn.relu(conv_layer(pooling1, w_conv2, stride = 2) + b_conv2)
+        w_conv3 = tf.Variable(tf.truncated_normal([3, 3, 64, 64], stddev = 0.1))
+        b_conv3 = tf.Variable(tf.truncated_normal([64], stddev = 0.01))
+        conv3 = tf.nn.relu(conv_layer(conv2, w_conv3) + b_conv3)
         pulling_size = int(conv3.shape[1]) * int(conv3.shape[2]) * int(conv3.shape[3])
-        conv3 = tf.reshape(tf.reshape(conv3, [-1, pulling_size]), [batch_size, 8, 512])
-        cell = tf.nn.rnn_cell.LSTMCell(512, state_is_tuple = False)
-        self.hidden_layer = tf.placeholder(tf.float32, (None, 2 * 512))
-        self.rnn,self.last_state = tf.nn.dynamic_rnn(inputs=conv3,cell=cell,
-                                                    dtype=tf.float32,
-                                                    initial_state=self.hidden_layer,scope=name+'_rnn')
-        self.tensor_action, self.tensor_validation = tf.split(self.rnn[:, -1,:],2,1)
-        self.feed_action = tf.matmul(self.tensor_action, action_layer)
-        self.feed_validation = tf.matmul(self.tensor_validation, action_layer)
-        self.logits = self.feed_validation + tf.subtract(self.feed_action,tf.reduce_mean(self.feed_action,axis=1,keep_dims=True))
+        conv3 = tf.reshape(conv3, [-1, pulling_size])
+        self.tensor_action, self.tensor_validation = tf.split(conv3,2,1)
+        w_action1 = tf.Variable(tf.truncated_normal([pulling_size // 2, 256], stddev = 0.1))
+        w_action2 = tf.Variable(tf.truncated_normal([256, self.OUTPUT_SIZE], stddev = 0.1))
+        w_validation1 = tf.Variable(tf.truncated_normal([pulling_size // 2, 256], stddev = 0.1))
+        w_validation2 = tf.Variable(tf.truncated_normal([256, 1], stddev = 0.1))
+        fc_action1 = tf.nn.relu(tf.matmul(self.tensor_action, w_action1))
+        fc_action2 = tf.matmul(fc_action1, w_action2)
+        fc_validation1 = tf.nn.relu(tf.matmul(self.tensor_validation, w_validation1))
+        fc_validation2 = tf.matmul(fc_validation2, w_validation2)
+        self.logits = fc_validation2 + tf.subtract(fc_action2,tf.reduce_mean(fc_action2,axis=1,keep_dims=True))
         self.cost = tf.reduce_sum(tf.square(self.Y - self.logits))
         self.optimizer = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(self.cost)
 
@@ -50,10 +51,11 @@ class Agent:
     MIN_EPSILON = 0.1
     GAMMA = 0.99
     MEMORIES = deque()
-    MEMORY_SIZE = 1000
+    MEMORY_SIZE = 300
     COPY = 1000
     T_COPY = 0
     INITIAL_IMAGES = np.zeros((80, 80, 4))
+    # based on documentation, features got 8 dimensions
     # output is 2 dimensions, 0 = do nothing, 1 = jump
 
     def __init__(self, screen=False, forcefps=True):
@@ -61,10 +63,8 @@ class Agent:
         self.env = PLE(self.game, fps=30, display_screen=screen, force_fps=forcefps)
         self.env.init()
         self.env.getGameState = self.game.getGameState
-        # output_size, learning_rate, batch_size, name
-        self.model = Model(self.OUTPUT_SIZE, self.LEARNING_RATE, self.BATCH_SIZE, 'real_model')
-        self.model_negative = Model(self.OUTPUT_SIZE, self.LEARNING_RATE, self.BATCH_SIZE, 'negative_model')
-        self.sess = tf.InteractiveSession()
+        self.model = Model(self.OUTPUT_SIZE, self.LEARNING_RATE)
+        self.model_negative = Model(self.OUTPUT_SIZE, self.LEARNING_RATE)
         self.sess = tf.InteractiveSession()
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver(tf.global_variables())
@@ -76,8 +76,8 @@ class Agent:
             assign_op = self.trainable[i+len(self.trainable)//2].assign(self.trainable[i])
             sess.run(assign_op)
 
-    def _memorize(self, state, action, reward, new_state, dead, rnn_state):
-        self.MEMORIES.append((state, action, reward, new_state, dead, rnn_state))
+    def _memorize(self, state, action, reward, new_state, dead):
+        self.MEMORIES.append((state, action, reward, new_state, dead))
         if len(self.MEMORIES) > self.MEMORY_SIZE:
             self.MEMORIES.popleft()
 
@@ -86,13 +86,19 @@ class Agent:
         gray = 0.2989 * r + 0.5870 * g + 0.1140 * b
         return imresize(gray, size = (80, 80))
 
+    def _select_action(self, state):
+        if np.random.rand() < self.EPSILON:
+            action = np.random.randint(self.OUTPUT_SIZE)
+        else:
+            action = self.get_predicted_action([state])
+        return action
+
     def _construct_memories(self, replay):
         states = np.array([a[0] for a in replay])
         new_states = np.array([a[3] for a in replay])
-        init_values = np.array([a[-1] for a in replay])
-        Q = sess.run(self.model.logits, feed_dict={self.model.X:states, self.model.hidden_layer:init_values})
-        Q_new = sess.run(self.model.logits, feed_dict={self.model.X:new_states, self.model.hidden_layer:init_values})
-        Q_new_negative = sess.run(self.model_negative.logits, feed_dict={self.model_negative.X:new_states, self.model_negative.hidden_layer:init_values})
+        Q = self.predict(states)
+        Q_new = self.predict(new_states)
+        Q_new_negative = sess.run(self.model_negative, feed_dict={self.model_negative.X:new_states})
         replay_size = len(replay)
         X = np.empty((replay_size, 80, 80, 4))
         Y = np.empty((replay_size, self.OUTPUT_SIZE))
@@ -104,7 +110,10 @@ class Agent:
                 target[action_r] += self.GAMMA * Q_new_negative[i, np.argmax(Q_new[i])]
             X[i] = state_r
             Y[i] = target
-        return X, Y, init_values
+        return X, Y
+
+    def predict(self, inputs):
+        return self.sess.run(self.model.logits, feed_dict={self.model.X:inputs})
 
     def save(self, checkpoint_name):
         self.saver.save(self.sess, os.getcwd() + "/%s.ckpt" %(checkpoint_name))
@@ -116,6 +125,14 @@ class Agent:
         with open('%s-acc.p'%(checkpoint_name), 'rb') as fopen:
             self.rewards = pickle.load(fopen)
 
+    def get_predicted_action(self, sequence):
+        prediction = self.predict(np.array(sequence))[0]
+        return np.argmax(prediction)
+
+    def get_state(self):
+        state = self.env.getGameState()
+        return np.array(list(state.values()))
+
     def get_reward(self, iterations, checkpoint):
         for i in range(iterations):
             total_reward = 0
@@ -124,30 +141,22 @@ class Agent:
             for k in range(self.INITIAL_IMAGES.shape[2]):
                 self.INITIAL_IMAGES[:,:,k] = state
             dead = False
-            init_value = np.zeros((1, 2 * 512))
             while not dead:
                 if (self.T_COPY + 1) % self.COPY == 0:
                     self._assign()
-                if np.random.rand() < self.EPSILON:
-                    action = np.random.randint(self.OUTPUT_SIZE)
-                else:
-                    action, last_state = sess.run(self.model.logits,
-                                                  self.model.last_state,
-                                                  feed_dict={self.model.X:[self.INITIAL_IMAGES],
-                                                             self.model.hidden_layer:init_values})
-                    action, init_value = np.argmax(action[0]), last_state[0]
+                action  = self._select_action(self.INITIAL_IMAGES)
                 real_action = 119 if action == 1 else None
                 reward = self.env.act(real_action)
                 total_reward += reward
+                new_state = self.get_state()
                 state = self._get_image(self.env.getScreenRGB())
                 new_state = np.append(state.reshape([80, 80, 1]), self.INITIAL_IMAGES[:, :, :3], axis = 2)
                 dead = self.env.game_over()
-                self._memorize(self.INITIAL_IMAGES, action, reward, new_state, dead, init_value)
+                self._memorize(self.INITIAL_IMAGES, action, reward, new_state, dead)
                 batch_size = min(len(self.MEMORIES), self.BATCH_SIZE)
                 replay = random.sample(self.MEMORIES, batch_size)
-                X, Y, init_values = self._construct_memories(replay)
-                cost, _ = self.sess.run([self.model.cost, self.model.optimizer], feed_dict={self.model.X: X, self.model.Y:Y,
-                                                                                self.model.hidden_layer: init_values})
+                X, Y = self._construct_memories(replay)
+                cost, _ = self.sess.run([self.cost, self.optimizer], feed_dict={self.X: X, self.Y:Y})
                 self.INITIAL_IMAGES = new_state
                 self.T_COPY += 1
             self.rewards.append(total_reward)

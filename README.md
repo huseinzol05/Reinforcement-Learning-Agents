@@ -2,19 +2,26 @@
 ### Play various of games using deep learning Tensorflow and deep Evolution Strategies. 
 
 #### *All agents will be trained on RGB frames and feature values native from the game engine.*
+#### *Right now I got machine limitation, so I am very sorry for late result posting.*
+
+```text
+ES == Evolution Strategies
+DL == Deep Learning
+```
 
 Every games will be developed on different algorithms:
-1. Reward based on evolution strategies
-2. Policy gradient on evolution strategies and deep learning
-3. Q-learning on evolution strategies and deep learning
-4. Double Q-learning on evolution strategies and deep learning
-5. Recurrent-Q-learning on evolution strategies and deep learning
-6. Double Recurrent-Q-learning on evolution strategies and deep learning
-7. Dueling Q-learning on evolution strategies and deep learning
-8. Dueling Double Q-learning on evolution strategies and deep learning
-9. Dueling Double Recurrent-Q-learning on evolution strategies and deep learning
-10. Actor-Critic on deep learning
-11. Asynchronous Actor-Critic on deep learning
+1. Reward based {ES}
+2. Policy gradient {ES, DL}
+3. Q-learning {ES, DL}
+4. Double Q-learning {ES, DL}
+5. Recurrent-Q-learning {DL}
+6. Double Recurrent-Q-learning {DL}
+7. Dueling Q-learning {DL}
+8. Dueling Recurrent-Q-learning {DL}
+9. Double Dueling Q-learning {DL}
+10. Double Dueling Recurrent-Q-learning {DL}
+11. Actor-Critic {DL}
+12. Recurrent Actor-Critic {DL}
 
 Games that will be developed:
 1. Flappy bird
@@ -27,11 +34,6 @@ Games that will be developed:
 8. Water World
 9. Dooms
 
-How to read the file, game-folder/algorithm/{features, frames}_{DL, ES}.py
-
-```text
-DL = Deep learning
-ES = Evolution Strategies
-```
+### How to read the file, game-folder/algorithm/{features, frames}_{DL, ES}.py
 
 This repository will be update overtime.
