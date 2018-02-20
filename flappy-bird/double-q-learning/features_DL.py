@@ -47,6 +47,7 @@ class Agent:
         self.sess = tf.InteractiveSession()
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver(tf.global_variables())
+        self.trainable = tf.trainable_variables()
         self.rewards = []
 
     def _assign(self):

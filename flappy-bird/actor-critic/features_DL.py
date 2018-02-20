@@ -7,14 +7,24 @@ from collections import deque
 import os
 import pickle
 
-class Model:
-    def __init__(self, name):
-        with tf.variable_scope("actor"):
-            self.X_actor = tf.placeholder(tf.float32, (None, self.INPUT_SIZE))
-            layer_actor = tf.Variable(tf.random_normal([self.INPUT_SIZE, self.LAYER_SIZE]))
-            output_actor = tf.Variable(tf.random_normal([self.LAYER_SIZE, self.OUTPUT_SIZE]))
+class Actor:
+    def __init__(self, name, input_size, output_size, size_layer):
+        with tf.variable_scope(name):
+            self.X_actor = tf.placeholder(tf.float32, (None, input_size))
+            layer_actor = tf.Variable(tf.random_normal([input_size, size_layer]))
+            output_actor = tf.Variable(tf.random_normal([size_layer, output_size]))
             feed_actor = tf.nn.relu(tf.matmul(self.X_actor, layer_actor))
             self.logits_actor = tf.matmul(feed_actor, output_actor)
+
+class Critic:
+    def __init__(self, name, input_size, output_size, size_layer):
+        with tf.variable_scope(name):
+            self.X_critic = tf.placeholder(tf.float32, (None, input_size))
+            self.Y_critic = tf.placeholder(tf.float32, (None, output_size))
+            layer_critic = tf.Variable(tf.random_normal([input_size, size_layer]))
+            output_critic = tf.Variable(tf.random_normal([size_layer, output_size]))
+            feed_actor = tf.nn.relu(tf.matmul(self.X_actor, layer_actor))
+            self.logits_critic = tf.matmul(feed_actor, output_actor) + self.Y_critic
 
 class Agent:
 
@@ -37,28 +47,28 @@ class Agent:
         self.env = PLE(self.game, fps=30, display_screen=screen, force_fps=forcefps)
         self.env.init()
         self.env.getGameState = self.game.getGameState
-
-
-
-
-        with tf.variable_scope("critic"):
-            self.X_critic = tf.placeholder(tf.float32, (None, self.INPUT_SIZE))
-            self.Y_critic = tf.placeholder(tf.float32, (None, self.OUTPUT_SIZE))
-            layer_critic = tf.Variable(tf.random_normal([self.INPUT_SIZE, self.LAYER_SIZE]))
-            output_critic = tf.Variable(tf.random_normal([self.LAYER_SIZE, self.OUTPUT_SIZE]))
-            feed_actor = tf.nn.relu(tf.matmul(self.X_actor, layer_actor))
-            self.logits_critic = tf.matmul(feed_actor, output_actor) + self.Y_critic
-
-        self.grad_critic = tf.gradients(self.logits_critic, self.Y_critic)
+        self.actor = Actor('actor', self.INPUT_SIZE, self.OUTPUT_SIZE, self.LAYER_SIZE)
+        self.actor_target = Actor('actor-target', self.INPUT_SIZE, self.OUTPUT_SIZE, self.LAYER_SIZE)
+        self.critic = Critic('critic', self.INPUT_SIZE, self.OUTPUT_SIZE, self.LAYER_SIZE)
+        self.critic_target = Critic('critic-target', self.INPUT_SIZE, self.OUTPUT_SIZE, self.LAYER_SIZE)
+        self.grad_critic = tf.gradients(self.critic.logits_critic, self.critic.Y_critic)
         self.actor_critic_grad = tf.placeholder(tf.float32, [None, self.OUTPUT_SIZE])
         weights_actor = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='actor')
-        self.grad_actor = tf.gradients(self.logits_actor, weights_actor, -self.actor_critic_grad)
+        self.grad_actor = tf.gradients(self.model.logits_actor, weights_actor, -self.actor_critic_grad)
         grads = zip(self.grad_actor, weights_actor)
         self.optimizer = tf.train.AdamOptimizer(self.LEARNING_RATE).apply_gradients(grads)
         self.sess = tf.InteractiveSession()
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver(tf.global_variables())
         self.rewards = []
+
+    def _assign(self, from_name, to_name):
+        from_w = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=from_name)
+        to_w = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=to_name)
+        for i in range(len(from_w)):
+            assign_op = to_w[i].assign(from_w[i])
+            sess.run(assign_op)
+
 
     def _memorize(self, state, action, reward, new_state, dead):
         self.MEMORIES.append((state, action, reward, new_state, dead))
