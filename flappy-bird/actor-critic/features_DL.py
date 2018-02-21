@@ -10,21 +10,28 @@ import pickle
 class Actor:
     def __init__(self, name, input_size, output_size, size_layer):
         with tf.variable_scope(name):
-            self.X_actor = tf.placeholder(tf.float32, (None, input_size))
+            self.X = tf.placeholder(tf.float32, (None, input_size))
             layer_actor = tf.Variable(tf.random_normal([input_size, size_layer]))
             output_actor = tf.Variable(tf.random_normal([size_layer, output_size]))
-            feed_actor = tf.nn.relu(tf.matmul(self.X_actor, layer_actor))
-            self.logits_actor = tf.matmul(feed_actor, output_actor)
+            feed_actor = tf.nn.relu(tf.matmul(self.X, layer_actor))
+            self.logits = tf.matmul(feed_actor, output_actor)
 
 class Critic:
-    def __init__(self, name, input_size, output_size, size_layer):
+    def __init__(self, name, input_size, output_size, size_layer, learning_rate):
         with tf.variable_scope(name):
-            self.X_critic = tf.placeholder(tf.float32, (None, input_size))
-            self.Y_critic = tf.placeholder(tf.float32, (None, output_size))
+            self.X = tf.placeholder(tf.float32, (None, input_size))
+            self.Y = tf.placeholder(tf.float32, (None, output_size))
+            self.REWARD = tf.placeholder(tf.float32, (None, 1))
             layer_critic = tf.Variable(tf.random_normal([input_size, size_layer]))
             output_critic = tf.Variable(tf.random_normal([size_layer, output_size]))
-            feed_actor = tf.nn.relu(tf.matmul(self.X_actor, layer_actor))
-            self.logits_critic = tf.matmul(feed_actor, output_actor) + self.Y_critic
+            layer_merge = tf.Variable(tf.random_normal([output_size, size_layer//2]))
+            layer_merge_out = tf.Variable(tf.random_normal([size_layer//2, 1]))
+            feed_actor = tf.nn.relu(tf.matmul(self.X, layer_actor))
+            feed_actor = tf.nn.relu(tf.matmul(feed_actor, output_actor)) + self.Y
+            feed_actor = tf.nn.relu(tf.matmul(feed_actor, layer_merge))
+            self.logits = tf.matmul(feed_actor, layer_merge_out)
+            self.cost = np.reduce_mean(tf.square(self.REWARD - self.logits))
+            self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.cost)
 
 class Agent:
 
@@ -39,6 +46,8 @@ class Agent:
     GAMMA = 0.99
     MEMORIES = deque()
     MEMORY_SIZE = 300
+    COPY = 1000
+    T_COPY = 0
     # based on documentation, features got 8 dimensions
     # output is 2 dimensions, 0 = do nothing, 1 = jump
 
@@ -49,12 +58,12 @@ class Agent:
         self.env.getGameState = self.game.getGameState
         self.actor = Actor('actor', self.INPUT_SIZE, self.OUTPUT_SIZE, self.LAYER_SIZE)
         self.actor_target = Actor('actor-target', self.INPUT_SIZE, self.OUTPUT_SIZE, self.LAYER_SIZE)
-        self.critic = Critic('critic', self.INPUT_SIZE, self.OUTPUT_SIZE, self.LAYER_SIZE)
-        self.critic_target = Critic('critic-target', self.INPUT_SIZE, self.OUTPUT_SIZE, self.LAYER_SIZE)
-        self.grad_critic = tf.gradients(self.critic.logits_critic, self.critic.Y_critic)
+        self.critic = Critic('critic', self.INPUT_SIZE, self.OUTPUT_SIZE, self.LAYER_SIZE, self.LEARNING_RATE)
+        self.critic_target = Critic('critic-target', self.INPUT_SIZE, self.OUTPUT_SIZE, self.LAYER_SIZE, self.LEARNING_RATE)
+        self.grad_critic = tf.gradients(self.critic.logits, self.critic.Y)
         self.actor_critic_grad = tf.placeholder(tf.float32, [None, self.OUTPUT_SIZE])
         weights_actor = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='actor')
-        self.grad_actor = tf.gradients(self.model.logits_actor, weights_actor, -self.actor_critic_grad)
+        self.grad_actor = tf.gradients(self.actor.logits, weights_actor, -self.actor_critic_grad)
         grads = zip(self.grad_actor, weights_actor)
         self.optimizer = tf.train.AdamOptimizer(self.LEARNING_RATE).apply_gradients(grads)
         self.sess = tf.InteractiveSession()
@@ -79,29 +88,28 @@ class Agent:
         if np.random.rand() < self.EPSILON:
             action = np.random.randint(self.OUTPUT_SIZE)
         else:
-            action = self.get_predicted_action([state])
+            prediction = self.sess.run(self.actor.logits_actor, feed_dict={self.actor.X:[state]})[0]
+            action = np.argmax(prediction)
         return action
 
-    def _construct_memories(self, replay):
+    def _construct_memories_and_train(self, replay):
+        # state_r, action_r, reward_r, new_state_r, dead_r = replay
+        # train actor
         states = np.array([a[0] for a in replay])
         new_states = np.array([a[3] for a in replay])
-        Q = self.predict(states)
-        Q_new = self.predict(new_states)
-        replay_size = len(replay)
-        X = np.empty((replay_size, self.INPUT_SIZE))
-        Y = np.empty((replay_size, self.OUTPUT_SIZE))
-        for i in range(replay_size):
-            state_r, action_r, reward_r, new_state_r, dead_r = replay[i]
-            target = Q[i]
-            target[action_r] = reward_r
-            if not dead_r:
-                target[action_r] += self.GAMMA * np.amax(Q_new[i])
-            X[i] = state_r
-            Y[i] = target
-        return X, Y
+        Q = self.sess.run(self.actor.logits, feed_dict={self.actor.X: states})
+        Q_target = self.sess.run(self.actor_target.logits, feed_dict={self.actor_target.X: states})
+        grads = self.sess.run(self.grad_critic, feed_dict={self.critic.X:states, self.critic.Y:Q})
+        self.sess.run(self.optimizer, feed_dict={self.actor.logits:states, self.actor_critic_grad:grads})
 
-    def predict(self, inputs):
-        return self.sess.run(self.logits, feed_dict={self.X:inputs})
+        # train critic
+        rewards = np.array([a[2] for a in replay]).reshape((-1, 1))
+        rewards_target = self.sess.run(self.critic_target.logits, feed_dict={self.critic_target.X:new_states,self.critic_target.Y:Q_target})
+        for i in range(len(replay)):
+            if not replay[0][-1]:
+                rewards[i,0] += self.GAMMA * rewards_target
+        cost, _ = self.sess.run([self.critic.cost, self.critic.optimizer), feed_dict={self.critic.X:states, self.critic.Y:Q, self.critic.REWARD:rewards})
+        return cost
 
     def save(self, checkpoint_name):
         self.saver.save(self.sess, os.getcwd() + "/%s.ckpt" %(checkpoint_name))
@@ -113,10 +121,6 @@ class Agent:
         with open('%s-acc.p'%(checkpoint_name), 'rb') as fopen:
             self.rewards = pickle.load(fopen)
 
-    def get_predicted_action(self, sequence):
-        prediction = self.predict(np.array(sequence))[0]
-        return np.argmax(prediction)
-
     def get_state(self):
         state = self.env.getGameState()
         return np.array(list(state.values()))
@@ -127,6 +131,9 @@ class Agent:
             self.env.reset_game()
             dead = False
             while not dead:
+                if (self.T_COPY + 1) % self.COPY == 0:
+                    self._assign('actor', 'actor-target')
+                    self._assign('critic', 'critic-target')
                 state = self.get_state()
                 action  = self._select_action(state)
                 real_action = 119 if action == 1 else None
@@ -137,8 +144,7 @@ class Agent:
                 self._memorize(state, action, reward, new_state, dead)
                 batch_size = min(len(self.MEMORIES), self.BATCH_SIZE)
                 replay = random.sample(self.MEMORIES, batch_size)
-                X, Y = self._construct_memories(replay)
-                cost, _ = self.sess.run([self.cost, self.optimizer], feed_dict={self.X: X, self.Y:Y})
+                cost = self._construct_memories_and_train(replay)
             self.rewards.append(total_reward)
             self.EPSILON = self.MIN_EPSILON + (1.0 - self.MIN_EPSILON) * np.exp(-self.DECAY_RATE * i)
             if (i+1) % checkpoint == 0:
