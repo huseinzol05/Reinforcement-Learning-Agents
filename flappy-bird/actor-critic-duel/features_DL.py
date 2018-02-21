@@ -12,9 +12,13 @@ class Actor:
         with tf.variable_scope(name):
             self.X = tf.placeholder(tf.float32, (None, input_size))
             layer_actor = tf.Variable(tf.random_normal([input_size, size_layer]))
-            output_actor = tf.Variable(tf.random_normal([size_layer, output_size]))
-            feed_actor = tf.nn.relu(tf.matmul(self.X, layer_actor))
-            self.logits = tf.matmul(feed_actor, output_actor)
+            action_layer = tf.Variable(tf.random_normal([size_layer // 2, output_size]))
+            validation_layer = tf.Variable(tf.random_normal([size_layer // 2, 1]))
+            feed_forward = tf.nn.relu(tf.matmul(self.X, input_layer) + bias)
+            self.tensor_action, self.tensor_validation = tf.split(feed_forward,2,1)
+            self.feed_action = tf.matmul(self.tensor_action, action_layer)
+            self.feed_validation = tf.matmul(self.tensor_validation, validation_layer)
+            self.logits = self.feed_validation + tf.subtract(self.feed_action,tf.reduce_mean(self.feed_action,axis=1,keep_dims=True))
 
 class Critic:
     def __init__(self, name, input_size, output_size, size_layer, learning_rate):
@@ -23,11 +27,16 @@ class Critic:
             self.Y = tf.placeholder(tf.float32, (None, output_size))
             self.REWARD = tf.placeholder(tf.float32, (None, 1))
             layer_critic = tf.Variable(tf.random_normal([input_size, size_layer]))
-            output_critic = tf.Variable(tf.random_normal([size_layer, output_size]))
+            action_layer = tf.Variable(tf.random_normal([size_layer // 2, output_size]))
+            validation_layer = tf.Variable(tf.random_normal([size_layer // 2, 1]))
             layer_merge = tf.Variable(tf.random_normal([output_size, size_layer//2]))
             layer_merge_out = tf.Variable(tf.random_normal([size_layer//2, 1]))
-            feed_critic = tf.nn.relu(tf.matmul(self.X, layer_actor))
-            feed_critic = tf.nn.relu(tf.matmul(feed_critic, output_actor)) + self.Y
+            feed_forward = tf.nn.relu(tf.matmul(self.X, layer_critic))
+            self.tensor_action, self.tensor_validation = tf.split(feed_forward,2,1)
+            self.feed_action = tf.nn.relu(tf.matmul(self.tensor_action, action_layer))
+            self.feed_validation = tf.nn.relu(tf.matmul(self.tensor_validation, validation_layer))
+            feed_critic = self.feed_validation + tf.subtract(self.feed_action,tf.reduce_mean(self.feed_action,axis=1,keep_dims=True))
+            feed_critic = feed_critic + self.Y
             feed_critic = tf.nn.relu(tf.matmul(feed_critic, layer_merge))
             self.logits = tf.matmul(feed_critic, layer_merge_out)
             self.cost = np.reduce_mean(tf.square(self.REWARD - self.logits))
