@@ -72,12 +72,11 @@ class Agent:
         self.rewards = []
 
     def _assign(self, from_name, to_name):
-        from_w = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=from_name)
-        to_w = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=to_name)
+        from_w = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=from_name)
+        to_w = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=to_name)
         for i in range(len(from_w)):
             assign_op = to_w[i].assign(from_w[i])
             sess.run(assign_op)
-
 
     def _memorize(self, state, action, reward, new_state, dead):
         self.MEMORIES.append((state, action, reward, new_state, dead))

@@ -19,7 +19,7 @@
 ### Double Q-learning
 - [x] features DL
 - [x] features ES
-- [ ] frames DL
+- [x] frames DL
 - [x] frames ES
 
 ### Recurrent-Q-learning
