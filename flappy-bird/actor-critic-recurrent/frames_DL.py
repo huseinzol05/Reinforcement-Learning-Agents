@@ -18,17 +18,16 @@ class Actor:
             w_conv2 = tf.Variable(tf.truncated_normal([4, 4, 32, 64], stddev = 0.1))
             conv2 = tf.nn.relu(conv_layer(pooling1, w_conv2, stride = 2))
             w_conv3 = tf.Variable(tf.truncated_normal([3, 3, 64, 64], stddev = 0.1))
-            conv3 = tf.nn.relu(conv_layer(conv2, w_conv3) + b_conv3)
+            conv3 = tf.nn.relu(conv_layer(conv2, w_conv3))
             pulling_size = int(conv3.shape[1]) * int(conv3.shape[2]) * int(conv3.shape[3])
-            conv3 = tf.reshape(conv3, [-1, pulling_size])
-            w_fc1 = tf.Variable(tf.truncated_normal([pulling_size, 256], stddev = 0.1))
-            action_layer = tf.Variable(tf.random_normal([size_layer // 2, output_size]))
-            validation_layer = tf.Variable(tf.random_normal([size_layer // 2, 1]))
-            fc_1 = tf.nn.relu(tf.matmul(conv3, w_fc1))
-            tensor_action, tensor_validation = tf.split(fc_1,2,1)
-            feed_action = tf.matmul(tensor_action, action_layer)
-            feed_validation = tf.matmul(tensor_validation, validation_layer)
-            self.logits = feed_validation + tf.subtract(feed_action,tf.reduce_mean(feed_action,axis=1,keep_dims=True))
+            conv3 = tf.reshape(tf.reshape(conv3, [-1, pulling_size]), [batch_size, 8, 512])
+            cell = tf.nn.rnn_cell.LSTMCell(512, state_is_tuple = False)
+            self.hidden_layer = tf.placeholder(tf.float32, (None, 2 * 512))
+            self.rnn,self.last_state = tf.nn.dynamic_rnn(inputs=conv3,cell=cell,
+                                                        dtype=tf.float32,
+                                                        initial_state=self.hidden_layer)
+            w = tf.Variable(tf.random_normal([512, output_size]))
+            self.logits = tf.matmul(self.rnn[:,-1], w)
 
 class Critic:
     def __init__(self, name, input_size, output_size, size_layer, learning_rate):
@@ -43,19 +42,16 @@ class Critic:
             w_conv3 = tf.Variable(tf.truncated_normal([3, 3, 64, 64], stddev = 0.1))
             conv3 = tf.nn.relu(conv_layer(conv2, w_conv3))
             pulling_size = int(conv3.shape[1]) * int(conv3.shape[2]) * int(conv3.shape[3])
-            conv3 = tf.reshape(conv3, [-1, pulling_size])
-            w_fc1 = tf.Variable(tf.truncated_normal([pulling_size, 256], stddev = 0.1))
-            b_fc1 = tf.Variable(tf.truncated_normal([256], stddev = 0.01))
-            action_layer = tf.Variable(tf.random_normal([size_layer // 2, output_size]))
-            validation_layer = tf.Variable(tf.random_normal([size_layer // 2, 1]))
-            fc_1 = tf.nn.relu(tf.matmul(conv3, w_fc1))
+            conv3 = tf.reshape(tf.reshape(conv3, [-1, pulling_size]), [batch_size, 8, 512])
             layer_merge = tf.Variable(tf.random_normal([output_size, size_layer//2]))
             layer_merge_out = tf.Variable(tf.random_normal([size_layer//2, 1]))
-            tensor_action, tensor_validation = tf.split(fc_1,2,1)
-            feed_action = tf.matmul(tensor_action, action_layer)
-            feed_validation = tf.matmul(tensor_validation, validation_layer)
-            feed_critic = feed_validation + tf.subtract(feed_action,tf.reduce_mean(feed_action,axis=1,keep_dims=True))
-            feed_critic = feed_critic + self.Y
+            cell = tf.nn.rnn_cell.LSTMCell(512, state_is_tuple = False)
+            self.hidden_layer = tf.placeholder(tf.float32, (None, 2 * 512))
+            self.rnn,self.last_state = tf.nn.dynamic_rnn(inputs=conv3,cell=cell,
+                                                        dtype=tf.float32,
+                                                        initial_state=self.hidden_layer)
+            w = tf.Variable(tf.random_normal([512, output_size]))
+            feed_critic = tf.nn.relu(tf.matmul(self.rnn[:,-1], w)) + self.Y
             feed_critic = tf.nn.relu(tf.matmul(feed_critic, layer_merge))
             self.logits = tf.matmul(feed_critic, layer_merge_out)
             self.cost = np.reduce_mean(tf.square(self.REWARD - self.logits))
@@ -103,8 +99,8 @@ class Agent:
             assign_op = to_w[i].assign(from_w[i])
             sess.run(assign_op)
 
-    def _memorize(self, state, action, reward, new_state, dead):
-        self.MEMORIES.append((state, action, reward, new_state, dead))
+    def _memorize(self, state, action, reward, new_state, dead, rnn_state):
+        self.MEMORIES.append((state, action, reward, new_state, dead, rnn_state))
         if len(self.MEMORIES) > self.MEMORY_SIZE:
             self.MEMORIES.popleft()
 
@@ -113,35 +109,27 @@ class Agent:
         gray = 0.2989 * r + 0.5870 * g + 0.1140 * b
         return imresize(gray, size = (80, 80))
 
-    def _select_action(self, state):
-        if np.random.rand() < self.EPSILON:
-            action = np.random.randint(self.OUTPUT_SIZE)
-        else:
-            prediction = self.sess.run(self.actor.logits_actor, feed_dict={self.actor.X:[state]})[0]
-            action = np.argmax(prediction)
-        return action
-
     def _construct_memories_and_train(self, replay):
         # state_r, action_r, reward_r, new_state_r, dead_r = replay
         # train actor
         states = np.array([a[0] for a in replay])
         new_states = np.array([a[3] for a in replay])
-        Q = self.sess.run(self.actor.logits, feed_dict={self.actor.X: states})
-        Q_target = self.sess.run(self.actor_target.logits, feed_dict={self.actor_target.X: states})
-        grads = self.sess.run(self.grad_critic, feed_dict={self.critic.X:states, self.critic.Y:Q})
-        self.sess.run(self.optimizer, feed_dict={self.actor.logits:states, self.actor_critic_grad:grads})
+        init_values = np.array([a[-1] for a in replay])
+        Q = self.sess.run(self.actor.logits, feed_dict={self.actor.X: states, self.actor.hidden_layer:init_values})
+        Q_target = self.sess.run(self.actor_target.logits, feed_dict={self.actor_target.X: states, self.actor_target.hidden_layer:init_values})
+        grads = self.sess.run(self.grad_critic, feed_dict={self.critic.X:states, self.critic.hidden_layer: init_values, self.critic.Y:Q})
+        self.sess.run(self.optimizer, feed_dict={self.actor.X:states, self.actor.hidden_layer:init_values, self.actor_critic_grad:grads})
 
         # train critic
         rewards = np.array([a[2] for a in replay]).reshape((-1, 1))
-        rewards_target = self.sess.run(self.critic_target.logits, feed_dict={self.critic_target.X:new_states,self.critic_target.Y:Q_target})
+        rewards_target = self.sess.run(self.critic_target.logits, feed_dict={self.critic_target.X:new_states, self.critic_target.hidden_layer: init_values,
+                                                                             self.critic_target.Y:Q_target})
         for i in range(len(replay)):
             if not replay[0][-1]:
                 rewards[i,0] += self.GAMMA * rewards_target
-        cost, _ = self.sess.run([self.critic.cost, self.critic.optimizer), feed_dict={self.critic.X:states, self.critic.Y:Q, self.critic.REWARD:rewards})
+        cost, _ = self.sess.run([self.critic.cost, self.critic.optimizer), feed_dict={self.critic.X:states, self.critic.hidden_layer: init_values,
+                                                                                      self.critic.Y:Q, self.critic.REWARD:rewards})
         return cost
-
-    def predict(self, inputs):
-        return self.sess.run(self.logits, feed_dict={self.X:inputs})
 
     def save(self, checkpoint_name):
         self.saver.save(self.sess, os.getcwd() + "/%s.ckpt" %(checkpoint_name))
@@ -169,11 +157,19 @@ class Agent:
             for k in range(self.INITIAL_IMAGES.shape[2]):
                 self.INITIAL_IMAGES[:,:,k] = state
             dead = False
+            init_value = np.zeros((1, 2 * 512))
             while not dead:
                 if (self.T_COPY + 1) % self.COPY == 0:
                     self._assign('actor', 'actor-target')
                     self._assign('critic', 'critic-target')
-                action  = self._select_action(self.INITIAL_IMAGES)
+                if np.random.rand() < self.EPSILON:
+                    action = np.random.randint(self.OUTPUT_SIZE)
+                else:
+                    action, last_state = sess.run(self.model.logits,
+                                                  self.model.last_state,
+                                                  feed_dict={self.model.X:[self.INITIAL_IMAGES],
+                                                             self.model.hidden_layer:init_values})
+                    action, init_value = np.argmax(action[0]), last_state[0]
                 real_action = 119 if action == 1 else None
                 reward = self.env.act(real_action)
                 total_reward += reward
@@ -181,7 +177,7 @@ class Agent:
                 state = self._get_image(self.env.getScreenRGB())
                 new_state = np.append(state.reshape([80, 80, 1]), self.INITIAL_IMAGES[:, :, :3], axis = 2)
                 dead = self.env.game_over()
-                self._memorize(self.INITIAL_IMAGES, action, reward, new_state, dead)
+                self._memorize(self.INITIAL_IMAGES, action, reward, new_state, dead, init_value)
                 batch_size = min(len(self.MEMORIES), self.BATCH_SIZE)
                 replay = random.sample(self.MEMORIES, batch_size)
                 cost = self._construct_memories_and_train(replay)

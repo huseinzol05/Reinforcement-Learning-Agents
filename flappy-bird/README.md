@@ -55,12 +55,12 @@
 - [x] frames DL
 
 ### Actor-Critic Recurrent
-- [ ] features DL
-- [ ] frames DL
+- [x] features DL
+- [x] frames DL
 
 ### Actor-Critic Dueling Recurrent
-- [ ] features DL
-- [ ] frames DL
+- [x] features DL
+- [x] frames DL
 
 
 

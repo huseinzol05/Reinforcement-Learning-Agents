@@ -119,7 +119,7 @@ class Agent:
         Q = self.sess.run(self.actor.logits, feed_dict={self.actor.X: states})
         Q_target = self.sess.run(self.actor_target.logits, feed_dict={self.actor_target.X: states})
         grads = self.sess.run(self.grad_critic, feed_dict={self.critic.X:states, self.critic.Y:Q})
-        self.sess.run(self.optimizer, feed_dict={self.actor.logits:states, self.actor_critic_grad:grads})
+        self.sess.run(self.optimizer, feed_dict={self.actor.X:states, self.actor_critic_grad:grads})
 
         # train critic
         rewards = np.array([a[2] for a in replay]).reshape((-1, 1))

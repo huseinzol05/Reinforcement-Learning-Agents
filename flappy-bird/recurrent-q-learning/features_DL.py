@@ -110,13 +110,14 @@ class Agent:
                 real_action = 119 if action == 1 else None
                 reward = self.env.act(real_action)
                 total_reward += reward
-                new_state = self.get_state()
+                new_state = np.append(self.get_state(), self.INITIAL_FEATURES[:3, :], axis = 0)
                 dead = self.env.game_over()
                 self._memorize(state, action, reward, new_state, dead, init_value)
                 batch_size = min(len(self.MEMORIES), self.BATCH_SIZE)
                 replay = random.sample(self.MEMORIES, batch_size)
-                X, Y, init_values = self._construct_memories(replay)
-                cost, _ = self.sess.run([self.cost, self.optimizer], feed_dict={self.X: X, self.Y:Y,self.hidden_layer: init_values})
+                cost = self._construct_memories(replay)
+                self.EPSILON = self.MIN_EPSILON + (1.0 - self.MIN_EPSILON) * np.exp(-self.DECAY_RATE * i)
+                self.T_COPY += 1
             self.rewards.append(total_reward)
             self.EPSILON = self.MIN_EPSILON + (1.0 - self.MIN_EPSILON) * np.exp(-self.DECAY_RATE * i)
             if (i+1) % checkpoint == 0:

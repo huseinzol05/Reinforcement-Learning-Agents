@@ -28,7 +28,7 @@ Every games will be developed on different algorithms:
 14. Actor-Critic Dueling Recurrent {DL}
 
 Games that will be developed:
-1. Flappy bird
+1. Flappy bird [x]
 2. level 1 mario
 3. pong
 4. Catcher
