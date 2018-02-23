@@ -34,8 +34,8 @@ class Model:
             self.rnn,self.last_state = tf.nn.dynamic_rnn(inputs=conv3,cell=cell,
                                                         dtype=tf.float32,
                                                         initial_state=self.hidden_layer)
-            tf.Variable(tf.truncated_normal([output_size], stddev = 0.1))
-            self.logits =
+            w = tf.Variable(tf.random_normal([512, output_size]))
+            self.logits = tf.matmul(self.rnn[:,-1], w)
             self.cost = tf.reduce_sum(tf.square(self.Y - self.logits))
             self.optimizer = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(self.cost)
 

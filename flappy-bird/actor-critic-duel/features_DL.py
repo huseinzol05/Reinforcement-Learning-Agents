@@ -12,10 +12,10 @@ class Actor:
         with tf.variable_scope(name):
             self.X = tf.placeholder(tf.float32, (None, input_size))
             layer_actor = tf.Variable(tf.random_normal([input_size, size_layer]))
-            action_layer = tf.Variable(tf.random_normal([size_layer // 2, output_size]))
+            action_layer = tf.Variable(tf.random_normal([size_layer // 2, self.OUTPUT_SIZE]))
             validation_layer = tf.Variable(tf.random_normal([size_layer // 2, 1]))
-            feed_forward = tf.nn.relu(tf.matmul(self.X, input_layer) + bias)
-            self.tensor_action, self.tensor_validation = tf.split(feed_forward,2,1)
+            feed_actor = tf.nn.relu(tf.matmul(self.X, layer_actor))
+            self.tensor_action, self.tensor_validation = tf.split(feed_actor,2,1)
             self.feed_action = tf.matmul(self.tensor_action, action_layer)
             self.feed_validation = tf.matmul(self.tensor_validation, validation_layer)
             self.logits = self.feed_validation + tf.subtract(self.feed_action,tf.reduce_mean(self.feed_action,axis=1,keep_dims=True))
@@ -27,16 +27,16 @@ class Critic:
             self.Y = tf.placeholder(tf.float32, (None, output_size))
             self.REWARD = tf.placeholder(tf.float32, (None, 1))
             layer_critic = tf.Variable(tf.random_normal([input_size, size_layer]))
-            action_layer = tf.Variable(tf.random_normal([size_layer // 2, output_size]))
+            action_layer = tf.Variable(tf.random_normal([size_layer // 2, self.OUTPUT_SIZE]))
             validation_layer = tf.Variable(tf.random_normal([size_layer // 2, 1]))
             layer_merge = tf.Variable(tf.random_normal([output_size, size_layer//2]))
             layer_merge_out = tf.Variable(tf.random_normal([size_layer//2, 1]))
-            feed_forward = tf.nn.relu(tf.matmul(self.X, layer_critic))
-            self.tensor_action, self.tensor_validation = tf.split(feed_forward,2,1)
-            self.feed_action = tf.nn.relu(tf.matmul(self.tensor_action, action_layer))
-            self.feed_validation = tf.nn.relu(tf.matmul(self.tensor_validation, validation_layer))
+            feed_critic = tf.nn.relu(tf.matmul(self.X, layer_actor))
+            self.tensor_action, self.tensor_validation = tf.split(feed_critic,2,1)
+            self.feed_action = tf.matmul(self.tensor_action, action_layer)
+            self.feed_validation = tf.matmul(self.tensor_validation, validation_layer)
             feed_critic = self.feed_validation + tf.subtract(self.feed_action,tf.reduce_mean(self.feed_action,axis=1,keep_dims=True))
-            feed_critic = feed_critic + self.Y
+            feed_critic = tf.nn.relu(tf.matmul(feed_critic, output_actor)) + self.Y
             feed_critic = tf.nn.relu(tf.matmul(feed_critic, layer_merge))
             self.logits = tf.matmul(feed_critic, layer_merge_out)
             self.cost = np.reduce_mean(tf.square(self.REWARD - self.logits))
@@ -71,7 +71,7 @@ class Agent:
         self.critic_target = Critic('critic-target', self.INPUT_SIZE, self.OUTPUT_SIZE, self.LAYER_SIZE, self.LEARNING_RATE)
         self.grad_critic = tf.gradients(self.critic.logits, self.critic.Y)
         self.actor_critic_grad = tf.placeholder(tf.float32, [None, self.OUTPUT_SIZE])
-        weights_actor = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='actor')
+        weights_actor = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor')
         self.grad_actor = tf.gradients(self.actor.logits, weights_actor, -self.actor_critic_grad)
         grads = zip(self.grad_actor, weights_actor)
         self.optimizer = tf.train.AdamOptimizer(self.LEARNING_RATE).apply_gradients(grads)
@@ -81,12 +81,11 @@ class Agent:
         self.rewards = []
 
     def _assign(self, from_name, to_name):
-        from_w = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=from_name)
-        to_w = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=to_name)
+        from_w = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=from_name)
+        to_w = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=to_name)
         for i in range(len(from_w)):
             assign_op = to_w[i].assign(from_w[i])
             sess.run(assign_op)
-
 
     def _memorize(self, state, action, reward, new_state, dead):
         self.MEMORIES.append((state, action, reward, new_state, dead))
@@ -154,8 +153,9 @@ class Agent:
                 batch_size = min(len(self.MEMORIES), self.BATCH_SIZE)
                 replay = random.sample(self.MEMORIES, batch_size)
                 cost = self._construct_memories_and_train(replay)
+                self.EPSILON = self.MIN_EPSILON + (1.0 - self.MIN_EPSILON) * np.exp(-self.DECAY_RATE * i)
+                self.T_COPY += 1
             self.rewards.append(total_reward)
-            self.EPSILON = self.MIN_EPSILON + (1.0 - self.MIN_EPSILON) * np.exp(-self.DECAY_RATE * i)
             if (i+1) % checkpoint == 0:
                 print('epoch:', i + 1, 'total rewards:', total_reward)
                 print('epoch:', i + 1, 'cost:', cost)

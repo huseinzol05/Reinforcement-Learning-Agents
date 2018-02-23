@@ -43,8 +43,8 @@
 - [x] frames DL
 
 ### Double Dueling Recurrent-Q-learning
-- [ ] features DL
-- [ ] frames DL
+- [x] features DL
+- [x] frames DL
 
 ### Actor-Critic
 - [x] features DL
@@ -52,7 +52,7 @@
 
 ### Actor-Critic Dueling
 - [x] features DL
-- [ ] frames DL
+- [x] frames DL
 
 ### Actor-Critic Recurrent
 - [ ] features DL

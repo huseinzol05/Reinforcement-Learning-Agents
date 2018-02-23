@@ -62,7 +62,7 @@ class Agent:
         self.critic_target = Critic('critic-target', self.INPUT_SIZE, self.OUTPUT_SIZE, self.LAYER_SIZE, self.LEARNING_RATE)
         self.grad_critic = tf.gradients(self.critic.logits, self.critic.Y)
         self.actor_critic_grad = tf.placeholder(tf.float32, [None, self.OUTPUT_SIZE])
-        weights_actor = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='actor')
+        weights_actor = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor')
         self.grad_actor = tf.gradients(self.actor.logits, weights_actor, -self.actor_critic_grad)
         grads = zip(self.grad_actor, weights_actor)
         self.optimizer = tf.train.AdamOptimizer(self.LEARNING_RATE).apply_gradients(grads)
@@ -144,8 +144,9 @@ class Agent:
                 batch_size = min(len(self.MEMORIES), self.BATCH_SIZE)
                 replay = random.sample(self.MEMORIES, batch_size)
                 cost = self._construct_memories_and_train(replay)
+                self.EPSILON = self.MIN_EPSILON + (1.0 - self.MIN_EPSILON) * np.exp(-self.DECAY_RATE * i)
+                self.T_COPY += 1
             self.rewards.append(total_reward)
-            self.EPSILON = self.MIN_EPSILON + (1.0 - self.MIN_EPSILON) * np.exp(-self.DECAY_RATE * i)
             if (i+1) % checkpoint == 0:
                 print('epoch:', i + 1, 'total rewards:', total_reward)
                 print('epoch:', i + 1, 'cost:', cost)

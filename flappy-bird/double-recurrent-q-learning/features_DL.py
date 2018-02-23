@@ -9,19 +9,20 @@ import pickle
 
 class Model:
     def __init__(self, input_size, output_size, layer_size, learning_rate, name):
-        self.X = tf.placeholder(tf.float32, (None, None, input_size))
-        self.Y = tf.placeholder(tf.float32, (None, output_size))
-        cell = tf.nn.rnn_cell.LSTMCell(512, state_is_tuple = False)
-        self.hidden_layer = tf.placeholder(tf.float32, (None, 2 * 512))
-        self.rnn,self.last_state = tf.nn.dynamic_rnn(inputs=self.X,cell=cell,
-                                                    dtype=tf.float32,
-                                                    initial_state=self.hidden_layer,scope=name+'_rnn')
-        self.tensor_action, self.tensor_validation = tf.split(self.rnn[:, -1,:],2,1)
-        self.feed_action = tf.matmul(self.tensor_action, action_layer)
-        self.feed_validation = tf.matmul(self.tensor_validation, action_layer)
-        self.logits = self.feed_validation + tf.subtract(self.feed_action,tf.reduce_mean(self.feed_action,axis=1,keep_dims=True))
-        self.cost = tf.reduce_sum(tf.square(self.Y - self.logits))
-        self.optimizer = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(self.cost)
+        with tf.variable_scope(name):
+            self.X = tf.placeholder(tf.float32, (None, None, input_size))
+            self.Y = tf.placeholder(tf.float32, (None, output_size))
+            cell = tf.nn.rnn_cell.LSTMCell(512, state_is_tuple = False)
+            self.hidden_layer = tf.placeholder(tf.float32, (None, 2 * 512))
+            self.rnn,self.last_state = tf.nn.dynamic_rnn(inputs=self.X,cell=cell,
+                                                        dtype=tf.float32,
+                                                        initial_state=self.hidden_layer,scope=name+'_rnn')
+            self.tensor_action, self.tensor_validation = tf.split(self.rnn[:, -1,:],2,1)
+            self.feed_action = tf.matmul(self.tensor_action, action_layer)
+            self.feed_validation = tf.matmul(self.tensor_validation, action_layer)
+            self.logits = self.feed_validation + tf.subtract(self.feed_action,tf.reduce_mean(self.feed_action,axis=1,keep_dims=True))
+            self.cost = tf.reduce_sum(tf.square(self.Y - self.logits))
+            self.optimizer = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(self.cost)
 
 class Agent:
 
@@ -55,9 +56,11 @@ class Agent:
         self.saver = tf.train.Saver(tf.global_variables())
         self.rewards = []
 
-    def _assign(self):
-        for i in range(len(self.trainable)//2):
-            assign_op = self.trainable[i+len(self.trainable)//2].assign(self.trainable[i])
+    def _assign(self, from_name, to_name):
+        from_w = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=from_name)
+        to_w = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=to_name)
+        for i in range(len(from_w)):
+            assign_op = to_w[i].assign(from_w[i])
             sess.run(assign_op)
 
     def _memorize(self, state, action, reward, new_state, dead, rnn_state):
@@ -110,7 +113,7 @@ class Agent:
                 self.INITIAL_FEATURES[i,:] = state
             while not dead:
                 if (self.T_COPY + 1) % self.COPY == 0:
-                    self._assign()
+                    self._assign('real_model', 'target_model')
                 if np.random.rand() < self.EPSILON:
                     action = np.random.randint(self.OUTPUT_SIZE)
                 else:
