@@ -28,15 +28,15 @@ Every games will be developed on different algorithms:
 14. Actor-Critic Dueling Recurrent {DL}
 
 Games that will be developed:
-1. Flappy bird [x]
-2. level 1 mario
-3. pong
-4. Catcher
-5. Pixelcopter
-6. Raycast Maze
-7. Snake
-8. Water World
-9. Dooms
+- [x] Flappy bird
+- [ ] level 1 mario
+- [ ] pong
+- [ ] Catcher
+- [ ] Pixelcopter
+- [ ] Raycast Maze
+- [ ] Snake
+- [ ] Water World
+- [ ] Dooms
 
 ### How to read the file, game-folder/algorithm/{features, frames}_{DL, ES}.py
 
