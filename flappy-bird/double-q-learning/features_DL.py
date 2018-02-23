@@ -11,11 +11,10 @@ class Model:
     def __init__(self, input_size, output_size, layer_size, learning_rate):
         self.X = tf.placeholder(tf.float32, (None, input_size))
         self.Y = tf.placeholder(tf.float32, (None, output_size))
-        self.input_layer = tf.Variable(tf.random_normal([input_size, layer_size]))
-        self.bias = tf.Variable(tf.random_normal([layer_size]))
-        self.output_layer = tf.Variable(tf.random_normal([layer_size, output_size]))
-        feed_forward = tf.nn.relu(tf.matmul(self.X, self.input_layer) + self.bias)
-        self.logits = tf.matmul(feed_forward, self.output_layer)
+        input_layer = tf.Variable(tf.random_normal([input_size, layer_size]))
+        output_layer = tf.Variable(tf.random_normal([layer_size, output_size]))
+        feed_forward = tf.nn.relu(tf.matmul(self.X, input_layer))
+        self.logits = tf.matmul(feed_forward, output_layer)
         self.cost = tf.reduce_sum(tf.square(self.Y - self.logits))
         self.optimizer = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(self.cost)
 

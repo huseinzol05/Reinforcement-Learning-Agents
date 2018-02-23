@@ -30,9 +30,8 @@ class Agent:
         self.REWARDS = tf.placeholder(tf.float32, (None))
         self.ACTIONS = tf.placeholder(tf.int32, (None))
         input_layer = tf.Variable(tf.random_normal([self.INPUT_SIZE, self.LAYER_SIZE]))
-        bias = tf.Variable(tf.random_normal([self.LAYER_SIZE]))
         output_layer = tf.Variable(tf.random_normal([self.LAYER_SIZE, self.OUTPUT_SIZE]))
-        feed_forward = tf.nn.relu(tf.matmul(self.X, input_layer) + bias)
+        feed_forward = tf.nn.relu(tf.matmul(self.X, input_layer))
         self.logits = tf.nn.softmax(tf.matmul(feed_forward, output_layer))
         indexes = tf.range(0, tf.shape(self.logits)[0]) * tf.shape(self.logits)[1] + self.ACTIONS
         responsible_outputs = tf.gather(tf.reshape(self.logits, [-1]), indexes)

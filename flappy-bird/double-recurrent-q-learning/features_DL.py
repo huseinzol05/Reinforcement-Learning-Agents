@@ -16,7 +16,7 @@ class Model:
             self.hidden_layer = tf.placeholder(tf.float32, (None, 2 * 512))
             self.rnn,self.last_state = tf.nn.dynamic_rnn(inputs=self.X,cell=cell,
                                                         dtype=tf.float32,
-                                                        initial_state=self.hidden_layer,scope=name+'_rnn')
+                                                        initial_state=self.hidden_layer)
             self.tensor_action, self.tensor_validation = tf.split(self.rnn[:, -1,:],2,1)
             self.feed_action = tf.matmul(self.tensor_action, action_layer)
             self.feed_validation = tf.matmul(self.tensor_validation, action_layer)

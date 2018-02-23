@@ -35,10 +35,12 @@ class Agent:
         self.rnn,self.last_state = tf.nn.dynamic_rnn(inputs=self.X,cell=cell,
                                                     dtype=tf.float32,
                                                     initial_state=self.hidden_layer)
-        self.tensor_action, self.tensor_validation = tf.split(self.rnn[:, -1,:],2,1)
-        self.feed_action = tf.matmul(self.tensor_action, action_layer)
-        self.feed_validation = tf.matmul(self.tensor_validation, action_layer)
-        self.logits = self.feed_validation + tf.subtract(self.feed_action,tf.reduce_mean(self.feed_action,axis=1,keep_dims=True))
+        action_layer = tf.Variable(tf.random_normal([self.LAYER_SIZE // 2, self.OUTPUT_SIZE]))
+        validation_layer = tf.Variable(tf.random_normal([self.LAYER_SIZE // 2, 1]))
+        tensor_action, tensor_validation = tf.split(self.rnn[:, -1,:],2,1)
+        feed_action = tf.matmul(tensor_action, action_layer)
+        feed_validation = tf.matmul(tensor_validation, validation_layer)
+        self.logits = feed_validation + tf.subtract(feed_action,tf.reduce_mean(feed_action,axis=1,keep_dims=True))
         self.cost = tf.reduce_sum(tf.square(self.Y - self.logits))
         self.optimizer = tf.train.AdamOptimizer(learning_rate = self.LEARNING_RATE).minimize(self.cost)
         self.sess = tf.InteractiveSession()
