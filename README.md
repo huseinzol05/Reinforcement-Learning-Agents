@@ -1,11 +1,11 @@
 # Reinforcement-Learning-Agents
-Play various of games using deep learning Tensorflow and deep Evolution Strategies.
+Gathers machine learning and deep learning models for Reinforcement Learning.
 
 ## Information
 
 All agents will be trained on RGB frames or feature values native from the game engine.
 
-Right now I got machine limitation, so I am very sorry for late result posting.
+Right now I got machine and time limitation, I stopped working on this repository for a while, I promise I will get back.
 
 ```text
 ES == Evolution Strategies
@@ -48,6 +48,4 @@ Do not try any of these code yet, I never tested it before, still in development
 - [ ] Raycast Maze
 - [ ] Snake
 - [ ] Water World
-- [ ] Dooms 
-
-
+- [ ] Dooms
